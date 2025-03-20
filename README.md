@@ -12,7 +12,7 @@ SeatGeek, Ticketmaster, VividSeats hide their prices behind JavaScript, possible
 - Tracks ticket prices from supported sites  
 - Sends email alerts when price falls at/below your desired price  
 - Uses MongoDB for persistent storage to keep tracking  
-- FastAPI documentation  
+- FastAPI implemented for easy API access 
 - Automatically removes old events  
 - Easily deployable in Docker  
 
