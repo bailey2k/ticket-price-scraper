@@ -1,155 +1,172 @@
-# 🎟️ Ticket Price Scraper API
+# 🎟️ Ticket Price Scraper API 🎟️  
+
+[![Made with FastAPI](https://img.shields.io/badge/Made%20with-FastAPI-0ba360?style=for-the-badge&logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![Python](https://img.shields.io/badge/Python-3.10+-blue?style=for-the-badge&logo=python&logoColor=white)](https://www.python.org/)
+[![MongoDB](https://img.shields.io/badge/Database-MongoDB-brightgreen?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+[![Email Alerts](https://img.shields.io/badge/Email-Alerts-red?style=for-the-badge&logo=gmail&logoColor=white)](https://developers.google.com/gmail/api)
 
 ## Overview
 
-A simple scraper in Python I made over spring break that scrapes ticket resale websites and sends an email whenever price drops at or below the price you want.  
-For now, tracks Stubhub prices with direct HTML scraping with HTTPX and BeautifulSoup.  
-SeatGeek, Ticketmaster, VividSeats hide their prices behind JavaScript, possible to integrate later.
+🔍 Scrape ticket resale sites and get email alerts when prices drop.  
+Built over spring break because I got tired of refreshing StubHub.
+
+This API scrapes event listings using a headless browser and sends HTML email alerts when ticket prices hit your desired target.
 
 ---
 
-## Features
-- Tracks ticket prices from supported sites  
-- Sends email alerts when price falls at/below your desired price  
-- Uses MongoDB for persistent storage to keep tracking  
-- FastAPI implemented for easy API access 
-- Automatically removes old events  
-- Easily deployable in Docker  
+## 🛠 Built With
+
+- 🐍 Python 3.10+  
+- ⚡ FastAPI  
+- 🧠 MongoDB  
+- 🦊 [Camoufox](https://github.com/krea-ai/camoufox) (async Playwright wrapper)  
+- 📬 SMTP email alerts (styled w/ HTML)  
+- ⏰ APScheduler for background price checks  
 
 ---
 
-## Prerequisites
+## ✅ Features
+
+- Tracks ticket prices from StubHub  
+- Sends HTML emails when prices fall below your target  
+- Stores tracked events persistently in MongoDB  
+- Cleans out expired events  
+- REST API powered by FastAPI  
+- Docker-friendly (MongoDB in one line)  
+- Scheduler runs automatically in the background  
+
+---
+
+## 📦 Prerequisites
+
 - Python 3.10+  
-- MongoDB  
-- Docker (optionally) for containerized deployment  
-- SMTP credentials (email/password)  
+- MongoDB (Docker or local)  
+- SMTP credentials (Gmail recommended)  
 
 ---
 
-## Installation
+## 🧰 Installation
 
-### 1️⃣ Clone this repository  
-```sh
+### 1️⃣ Clone this repo
+
+```bash
 git clone https://github.com/bailey2k/ticket-price-scraper.git
 cd ticket-price-scraper
 ```
 
-### 2️⃣ Create a virtual environment  
-```sh
-python3 -m venv venv  # or python -m venv venv  
-source venv/bin/activate  # macOS/Linux  
-venv\Scripts\activate   # Windows  
+### 2️⃣ Create virtual environment
+
+```bash
+python3 -m venv venv
+source venv/bin/activate  # macOS/Linux
+venv\Scripts\activate     # Windows
 ```
 
-### 3️⃣ Install dependencies  
-```sh
+### 3️⃣ Install dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 4️⃣ Set up MongoDB  
-```sh
+### 4️⃣ Start MongoDB using Docker
+
+```bash
 docker run -d --name mongo -p 27017:27017 mongo
 ```
 
 ---
 
-## Set up email alerts  
+## 📧 Email Setup
 
-### 1️⃣ Create a `.env` file  
-```sh
+### 1️⃣ Create a `.env` file
+
+```bash
 touch .env
 ```
 
-### 2️⃣ Add the following:  
-```ini
-# Configure your email
-EMAIL_FROM=email@gmail.com
-EMAIL_PASSWORD=password
+### 2️⃣ Add your email credentials
 
-# Use a Gmail address above if you don't want to deal with this
+```ini
+EMAIL_FROM=your_email@gmail.com
+EMAIL_PASSWORD=your_app_password
 SMTP_SERVER=smtp.gmail.com
 SMTP_PORT=587
-
-# The interval the price will be checked in minutes
-TRACK_INTERVAL=60
-# Change to whatever you want or keep this way
 MONGO_URL=mongodb://localhost:27017
+TRACK_INTERVAL=60  # price check interval in minutes
 ```
 
 ---
 
-## 🚀 Running the API
+## 🚀 Running the App
 
-### 1️⃣ Start MongoDB  
-```sh
-docker run -d --name mongo -p 27017:27017 mongo
+```bash
+uvicorn app:app --reload
 ```
-*(If running MongoDB locally, keep the port the same.)*
 
-### 2️⃣ Start FastAPI  
-```sh
-python3 -m uvicorn app:app --host 0.0.0.0 --port 8000 --reload
-```
-🌎 **API should now available at:**  
-http://localhost:8000  
+📍 Swagger UI: [http://localhost:8000/docs](http://localhost:8000/docs)
 
 ---
 
-## 🌐 API Endpoints  
+## 🌐 API Endpoints
 
-### 1️⃣ Start tracking an event (`POST /track`)  
+### `POST /track` – Track an event
 
-Run this command:  
-```sh
-curl -X POST "http://localhost:8000/track" -H "Content-Type: application/json" -d '{
+```json
+{
   "site": "stubhub",
   "event_name": "The Weeknd in Landover, MD",
   "event_url": "https://www.stubhub.com/the-weeknd-landover-tickets-8-2-2025/event/157155913/?quantity=0",
   "event_date": "2025-08-02",
   "target_price": 100,
   "email": "user@example.com"
-}'
+}
 ```
 
-📌 **Parameters:**  
-- `site`: The name of the ticket site in lowercase  
-- `event_name`: This will be mentioned in the email you get  
-- `event_url`: Copy/paste the URL of your desired event *(change the end quantity to `0`)*  
-- `event_date`: Format: `YYYY-MM-DD`  
-- `target_price`: The maximum amount you want to pay for tickets  
-- `email`: The email to send the notification to  
+### `DELETE /events` – Delete an event by URL
 
-✅ **Response:**  
 ```json
-{"message": "Event added successfully"}
+{
+  "event_url": "https://stubhub.com/..."
+}
 ```
+
+### `GET /events` – Get all tracked events  
+Returns a list of active events stored in MongoDB.
+
+### `GET /prices` – Run a manual price check  
+Scrapes prices + sends alert emails (this also runs automatically in the background).
 
 ---
 
-### 2️⃣ Get all tracked events (`GET /events`)  
+## 💌 Email Preview
 
-Run:  
-```sh
-curl -X GET "http://localhost:8000/events"
+```text
+Subject: 🎟️ Price drop for The Weeknd in Landover, MD on stubhub!
+🎟️ Price Alert: The Weeknd in Landover, MD
+Event Date: 2025-08-02
+Current Price: $150
+Your Target: $160
+→ View Tickets
 ```
-✅ **Response:**  
-Returns a list of the above event JSONs.
+
+(HTML-styled + mobile-friendly)
 
 ---
 
-### 3️⃣ Check prices and send alerts (`GET /prices`)  
+## 🗺️ Roadmap
 
-Run:  
-```sh
-curl -X GET "http://localhost:8000/prices"
-```
-✅ **If a price drops below your target, you will receive an email alert.**  
+- [ ] Add SeatGeek + VividSeats support  
+- [ ] Build a web UI dashboard  
+- [ ] Add push notifications / SMS alerts  
+- [ ] Track price history over time  
 
 ---
 
-## ⭐ Like this project? Leave a star!  
+## ⭐ Like this project?
 
-If you enjoy this, please **leave a star on GitHub**. ⭐ 
-If you'd like to make changes, please do!
+If this helped you or you like the idea, please **leave a star** ⭐  
+PRs welcome if you want to contribute!
 
-TYSM - **bailey2k**  
+---
+
+> Made with 💻 and overpriced concert tickets by [@bailey2k](https://github.com/bailey2k)

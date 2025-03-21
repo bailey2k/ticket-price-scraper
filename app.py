@@ -1,42 +1,73 @@
 #app.py
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from scraper import SCRAPERS
 from send_email_module import send_email
-from apscheduler.schedulers.background import BackgroundScheduler
-from apscheduler.triggers.interval import IntervalTrigger
 from cfg import settings
 from pymongo import MongoClient
-import datetime
+from datetime import date, datetime
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.triggers.interval import IntervalTrigger
+from asyncio import run_coroutine_threadsafe
+from contextlib import asynccontextmanager
+import asyncio
 
-app = FastAPI(title = "Ticket Price Tracker API",
-              description="Track ticket prices and get email alerts when prices drop.",
-              version='1.0.0')
-scheduler = BackgroundScheduler()
-scheduler.start()
 
 client = MongoClient(settings.mongo_url)
 db = client["ticket-tracker"]
 events_db = db['tracked_events']
 
+event_loop = None
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+     global event_loop
+     event_loop = asyncio.get_running_loop()
+     print("[Startup] event loop captured")
+     scheduler = BackgroundScheduler()
+     scheduler.add_job(check_prices_job, IntervalTrigger(minutes=1))
+     scheduler.start()
+     yield
+     print("[Shutdown] cleanup done.")
+
+# FastAPI app
+app = FastAPI(title = "Ticket Price Tracker API",
+              description="Track ticket prices and get email alerts when prices drop.",
+              version='1.0.0',
+              lifespan=lifespan)
+
+# Pydantic models
 class TrackRequest(BaseModel):
     site: str
     event_url: str
     event_name: str
-    event_date: str 
+    event_date: str
     target_price: float
     email: str
 
     def to_mongo(self):
         return self.model_dump()
     
+class DeleteRequest(BaseModel):
+     event_url: str
+    
+# API endpoints
 @app.post("/track", summary="Track a new event", description="Adds a new event to the tracker and stores it in MongoDB.")
 def track_event(event: TrackRequest): 
         if events_db.find_one({"event_url": event.event_url}):
             raise HTTPException(status_code = 400, detail="Event is already being tracked")
-        events_db.insert_one(event.to_mongo())
-        return {"message": "Event added successfully"}
+        else:
+            events_db.insert_one(event.to_mongo())
+            return {"message": "Event added successfully"}
+
+@app.delete("/events", summary="Delete an event", description="Removes event from MongoDB.")
+def delete_event(event: DeleteRequest): 
+        if not events_db.find_one({"event_url": event.event_url}):
+            raise HTTPException(status_code = 404, detail="Event is not being tracked")
+        else:
+            events_db.delete_one({"event_url": event.event_url})
+            return {"message": "Event deleted successfully"}
 
 @app.get("/events", summary="Get the current tracked events", description="Retrieves the current events stored in MongoDB")
 def get_tracked_events():
@@ -49,24 +80,42 @@ async def check_prices():
         curr_event = TrackRequest(**event)
 
         # if event has passed, remove from database 
-        if datetime.datetime.strptime(curr_event.event_date, "%Y-%m-%d") < datetime.datetime.now():
+        event_date = datetime.strptime(curr_event.event_date, "%Y-%m-%d").date()
+        if event_date < date.today():
             events_db.delete_one({"event_url": curr_event.event_url})
 
         scraper_fx = SCRAPERS.get(curr_event.site)
 
         if scraper_fx:
-            lowest_price = scraper_fx(curr_event.event_url)
+            lowest_price = await scraper_fx(curr_event.event_url)
             if lowest_price and lowest_price <= curr_event.target_price:
-                await send_email (
-                    subject= f"Price below {curr_event.target_price} for {curr_event.event_name} on {curr_event.site}",
+                send_email (
+                    subject=f"🎟️ Price drop for {curr_event.event_name} on {curr_event.site}!",
                     # hyperlinking to the event page 
-                    body= f"""Current price is ${lowest_price} 
-                    <a href='{curr_event.event_url}' target='_blank' 
-                    style='color: blue; text-decoration: underline;'>Click here to view tickets</a>.""",
-                    recipient= curr_event.email,
+                    content= f"""
+                    <html>
+                    <body style="font-family: Arial, sans-serif; color: #333;">
+                        <h2>🎟️ Price Alert: {curr_event.event_name}</h2>
+                        <p><strong>Event Date:</strong> {curr_event.event_date}</p>
+                        <p><strong>Current Lowest Price:</strong> <span style="color:green;">${lowest_price}</span></p>
+                        <p><strong>Your Target Price:</strong> ${curr_event.target_price}</p>
+                        <p>
+                        <a href="{curr_event.event_url}" target="_blank" 
+                            style="display:inline-block;padding:10px 16px;background-color:#007bff;color:white;
+                                    text-decoration:none;border-radius:5px;margin-top:10px;">
+                            🎫 View Tickets
+                        </a>
+                        </p>
+                        <hr>
+                        <p style="font-size: 0.9em; color: #999;">This alert was generated by Ticket Price Tracker.</p>
+                    </body>
+                    </html>
+                    """,
+                    recipient_email= curr_event.email,
                 )
         
         # TODO: handling some other form of notification. I like email the most.
 
-
-scheduler.add_job(check_prices, IntervalTrigger(minutes=settings.track_interval))
+def check_prices_job():
+     print("[APScheduler] Running check_prices()")
+     run_coroutine_threadsafe(check_prices(), event_loop)
