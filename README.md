@@ -19,7 +19,7 @@ This API scrapes event listings using a headless browser and sends HTML email al
 - 🐍 Python 3.10+  
 - ⚡ FastAPI  
 - 🧠 MongoDB  
-- 🦊 [Camoufox](https://github.com/daijro/camoufox)(async Playwright wrapper)  
+- 🦊 [Camoufox](https://github.com/daijro/camoufox)(custom Firefox build)  
 - 📬 SMTP email alerts (styled w/ HTML)  
 - ⏰ APScheduler for background price checks  
 
