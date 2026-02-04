@@ -10,7 +10,7 @@
 Scrape ticket resale sites and get email alerts when prices drop.  
 Built over spring break to help snipe some non-overpriced tickets to sold out events.
 
-Currently relatively accurate, but sometimes gets confused whenever StubHub decides to bait site visitors with "recently sold" ticket prices.
+Currently relatively accurate, but sometimes gets confused whenever StubHub decides to bait site visitors with falsely listed "recently sold" ticket prices.
 
 This API scrapes event listings on a timed interval using a headless browser and sends HTML email alerts when ticket prices hit your desired target.
 
